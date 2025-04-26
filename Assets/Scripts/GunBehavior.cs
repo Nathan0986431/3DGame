@@ -2,11 +2,10 @@ using UnityEngine;
 using TMPro; // Needed for TextMeshPro
 
 public class ProjectileGun : MonoBehaviour
-
 {
     [Header("UI")]
     public TextMeshProUGUI ammoText;
-    
+
     [Header("Gun Settings")]
     public GameObject projectilePrefab;
     public Transform firePoint;
@@ -58,6 +57,7 @@ public class ProjectileGun : MonoBehaviour
 
         UpdateAmmoUI();
     }
+
     void UpdateAmmoUI()
     {
         if (ammoText != null)
@@ -69,9 +69,11 @@ public class ProjectileGun : MonoBehaviour
         return currentAmmo;
     }
 
-    public void RefillAmmo()
+    // Updated RefillAmmo method to allow partial ammo refill
+    public void RefillAmmo(int ammoAmount)
     {
-        currentAmmo = maxAmmo;
-        Debug.Log("Ammo refilled!");
+        currentAmmo = Mathf.Min(currentAmmo + ammoAmount, maxAmmo);
+        Debug.Log("Ammo refilled! Current ammo: " + currentAmmo);
+        UpdateAmmoUI();
     }
 }
