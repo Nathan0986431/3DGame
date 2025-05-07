@@ -3,89 +3,121 @@ using System.Collections;
 
 public class EnemySpawner : MonoBehaviour
 {
-    [Header("Spawn Settings")]
-    public GameObject enemyPrefab;    // The enemy prefab to spawn
-    public float spawnInterval = 2f;  // Time between enemy spawns
-    public int maxEnemies = 10;       // Maximum number of enemies allowed at once
+    [System.Serializable]
+    public class EnemySpawnData
+    {
+        public GameObject prefab;
+        public float spawnInterval = 2f;
+    }
+
+    [Header("Enemy Prefabs and Spawn Rates")]
+    public EnemySpawnData[] enemyTypes = new EnemySpawnData[4];
+
+    [Header("Spawn Limits")]
+    public int maxEnemies = 10;
+    private int currentEnemyCount = 0;
 
     [Header("Spawn Radius Settings")]
-    public Transform player;          // The player's transform (used for spawn radius)
-    public float spawnRadius = 20f;   // Max distance from player
-    public float minRadius = 5f;      // Avoid spawning too close to the player
-    public float heightRange = 5f;    // Enemies spawn ±height from player Y
+    public Transform player;
+    public float spawnRadius = 20f;
+    public float minRadius = 5f;
 
-    private int currentEnemyCount = 0;
+    [Header("Map Boundaries")]
+    public float mapMinX = -30f;
+    public float mapMaxX = 30f;
+    public float mapMinZ = -30f;
+    public float mapMaxZ = 30f;
+
+    [Header("Height Offset")]
+    public float minHeightOffset = 0.3f;
+    public float maxHeightOffset = 2f;
+
+    [Header("Terrain")]
+    public Terrain terrain;
 
     void Start()
     {
-        InvokeRepeating(nameof(SpawnEnemy), 1f, spawnInterval);  // Start spawning at regular intervals
+        // Start a coroutine for each enemy type
+        foreach (var enemy in enemyTypes)
+        {
+            if (enemy.prefab != null)
+                StartCoroutine(SpawnEnemyRoutine(enemy));
+        }
     }
 
-    void SpawnEnemy()
+    IEnumerator SpawnEnemyRoutine(EnemySpawnData enemyData)
     {
-        // Check if we are at the max enemy limit
-        if (currentEnemyCount >= maxEnemies) return;
+        yield return new WaitForSeconds(1f); // Initial delay
 
-        // Get a random spawn position around the player
-        Vector3 spawnPosition = GetRandomPositionAroundPlayer();
+        while (true)
+        {
+            if (currentEnemyCount < maxEnemies)
+            {
+                Vector3 spawnPos = GetValidSpawnPosition();
+                GameObject newEnemy = Instantiate(enemyData.prefab, spawnPos, Quaternion.identity);
+                currentEnemyCount++;
 
-        // Spawn the enemy at the random position
-        GameObject enemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
+                EnemyHealth enemyHealth = newEnemy.GetComponent<EnemyHealth>();
+                if (enemyHealth != null)
+                {
+                    enemyHealth.OnDeath += () =>
+                    {
+                        currentEnemyCount--;
+                        StartCoroutine(RespawnEnemy(enemyData, enemyHealth.respawnTime));
+                    };
+                }
+            }
+
+            yield return new WaitForSeconds(enemyData.spawnInterval);
+        }
+    }
+
+    IEnumerator RespawnEnemy(EnemySpawnData enemyData, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (currentEnemyCount >= maxEnemies) yield break;
+
+        Vector3 spawnPos = GetValidSpawnPosition();
+        GameObject newEnemy = Instantiate(enemyData.prefab, spawnPos, Quaternion.identity);
         currentEnemyCount++;
 
-        // Get the enemy's health script (if it exists)
-        EnemyHealth enemyHealth = enemy.GetComponent<EnemyHealth>();
+        EnemyHealth enemyHealth = newEnemy.GetComponent<EnemyHealth>();
         if (enemyHealth != null)
         {
-            // Hook into the enemy's OnDeath event to reduce the enemy count when it dies
-            enemyHealth.OnDeath += () => 
-            { 
-                currentEnemyCount--; 
-                StartCoroutine(RespawnEnemy(enemyHealth)); // Start respawn logic
+            enemyHealth.OnDeath += () =>
+            {
+                currentEnemyCount--;
+                StartCoroutine(RespawnEnemy(enemyData, enemyHealth.respawnTime));
             };
         }
     }
 
-    // Coroutine to handle enemy respawn after a certain delay
-    private IEnumerator RespawnEnemy(EnemyHealth enemyHealth)
+    Vector3 GetValidSpawnPosition()
     {
-        // Wait for the respawn time (same time as set in the enemy's health script)
-        yield return new WaitForSeconds(enemyHealth.respawnTime);
+        Vector3 position;
+        int attempts = 0;
 
-        // Respawn the enemy
-        Vector3 spawnPosition = GetRandomPositionAroundPlayer(); // Get a new random spawn position
-        enemyHealth.gameObject.SetActive(false); // Disable the enemy for respawn
-        GameObject newEnemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
-        currentEnemyCount++; // Increase the current enemy count
-
-        // Optionally, reinitialize the enemy's health if needed
-        EnemyHealth newEnemyHealth = newEnemy.GetComponent<EnemyHealth>();
-        if (newEnemyHealth != null)
+        do
         {
-            newEnemyHealth.OnDeath += () => 
-            { 
-                currentEnemyCount--; 
-                StartCoroutine(RespawnEnemy(newEnemyHealth)); // Start respawn logic for new enemy
-            };
-        }
+            Vector2 offset = Random.insideUnitCircle.normalized * Random.Range(minRadius, spawnRadius);
+            float spawnX = Mathf.Clamp(player.position.x + offset.x, mapMinX, mapMaxX);
+            float spawnZ = Mathf.Clamp(player.position.z + offset.y, mapMinZ, mapMaxZ);
+
+            float terrainHeight = terrain ? terrain.SampleHeight(new Vector3(spawnX, 0f, spawnZ)) : 0f;
+            float heightOffset = Random.Range(minHeightOffset, maxHeightOffset);
+            float spawnY = terrainHeight + heightOffset;
+
+            position = new Vector3(spawnX, spawnY, spawnZ);
+            attempts++;
+
+            if (attempts > 20) break;
+
+        } while (Vector3.Distance(position, player.position) < minRadius);
+
+        return position;
     }
 
-    // Get a random spawn position around the player
-    Vector3 GetRandomPositionAroundPlayer()
-    {
-        Vector2 circle = Random.insideUnitCircle.normalized * Random.Range(minRadius, spawnRadius);
-        float heightOffset = Random.Range(-heightRange, heightRange);
-
-        Vector3 spawnPos = new Vector3(
-            player.position.x + circle.x,
-            player.position.y + heightOffset,
-            player.position.z + circle.y
-        );
-
-        return spawnPos;
-    }
-
-    // Draw spawn areas in the editor (for debugging)
     void OnDrawGizmosSelected()
     {
         if (player == null) return;
@@ -94,5 +126,11 @@ public class EnemySpawner : MonoBehaviour
         Gizmos.DrawWireSphere(player.position, spawnRadius);
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(player.position, minRadius);
+
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(new Vector3(mapMinX, 0f, mapMinZ), new Vector3(mapMaxX, 0f, mapMinZ));
+        Gizmos.DrawLine(new Vector3(mapMaxX, 0f, mapMinZ), new Vector3(mapMaxX, 0f, mapMaxZ));
+        Gizmos.DrawLine(new Vector3(mapMaxX, 0f, mapMaxZ), new Vector3(mapMinX, 0f, mapMaxZ));
+        Gizmos.DrawLine(new Vector3(mapMinX, 0f, mapMaxZ), new Vector3(mapMinX, 0f, mapMinZ));
     }
 }

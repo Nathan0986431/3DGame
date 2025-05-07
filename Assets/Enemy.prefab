@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: -1824409726019409920}
   m_Layer: 0
   m_Name: Enemy
-  m_TagString: Untagged
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -67,7 +67,8 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: -876546973899608171, guid: da8acf8b6d7dc4dca8f3b1edf34f6049, type: 3}
+  - {fileID: -876546973899608171, guid: c8a8c7029100c4a408c16482f8343f66, type: 3}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -151,5 +152,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3ba2406f92e9e4c168bfa966770e55c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 100
+  maxHealth: 120
   respawnTime: 5

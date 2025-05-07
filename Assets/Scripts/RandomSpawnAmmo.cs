@@ -1,51 +1,84 @@
 using UnityEngine;
+using System.Collections; // This is required to use IEnumerator
 
 public class RandomAmmoSpawner : MonoBehaviour
 {
-    [Header("Spawn Settings")]
-    [SerializeField] private GameObject ammoPickupPrefab; // Ammo pickup prefab to spawn
-    [SerializeField] private float spawnRadius = 10f; // Radius around the player to spawn the pickup
-    [SerializeField] private float spawnHeight = 1f;  // Height offset (optional)
-    [SerializeField] private float spawnDelay = 2f; // Delay before spawn (optional)
+    [Header("Ammo Pickup Settings")]
+    public GameObject ammoPickupPrefab;
+    public float spawnInterval = 10f;
+    [SerializeField] private int maxAmmoPickups = 1;
+    [SerializeField] private float despawnTime = 5f; // Time before despawning the ammo pickup
 
-    [Header("Spawn Limits")]
-    [SerializeField] private int maxAmmoPickups = 1; // Number of ammo pickups to spawn (default is 1)
+    [Header("Spawn Area Bounds")]
+    public Vector3 areaCenter;
+    public Vector3 areaSize;
 
-    [Header("Player Settings")]
-    [SerializeField] private Transform player; // Reference to the player transform
+    [Header("Spawn Height Range")]
+    [SerializeField] private float minHeight = 0f;
+    [SerializeField] private float maxHeight = 3f;
 
-    private bool ammoPickupExists = false; // Track if an ammo pickup already exists in the game
+    private int currentPickupCount = 0;
 
     void Start()
     {
-        // Optionally, you can use a delay to spawn it after a few seconds
-        Invoke("SpawnAmmoPickup", spawnDelay);
+        InvokeRepeating(nameof(SpawnAmmoPickup), spawnInterval, spawnInterval);
     }
 
     void SpawnAmmoPickup()
     {
-        // Check if an ammo pickup already exists or if the max limit has been reached
-        if (!ammoPickupExists && maxAmmoPickups > 0)
+        if (currentPickupCount >= maxAmmoPickups) return;
+
+        Vector3 spawnPos = GetRandomPositionWithinArea();
+
+        GameObject newPickup = Instantiate(ammoPickupPrefab, spawnPos, Quaternion.identity);
+        currentPickupCount++;
+
+        // Attach callback to notify this spawner when it's collected
+        AmmoPickup pickup = newPickup.GetComponent<AmmoPickup>();
+        if (pickup != null)
         {
-            // Get a random position within a radius around the player
-            Vector3 randomPosition = player.position + new Vector3(
-                Random.Range(-spawnRadius, spawnRadius), // Random X position
-                spawnHeight, // Fixed Y position (height above ground)
-                Random.Range(-spawnRadius, spawnRadius)  // Random Z position
-            );
-
-            // Instantiate the ammo pickup prefab at the random position
-            Instantiate(ammoPickupPrefab, randomPosition, Quaternion.identity);
-
-            ammoPickupExists = true; // Set the flag to true since a pickup is now in the game
-            maxAmmoPickups--; // Decrease the spawn limit
+            pickup.OnPickedUp += AmmoPickupDestroyed;
         }
+
+        // Start a coroutine to despawn the pickup after the specified time
+        StartCoroutine(DespawnPickup(newPickup)); // Fixed: use StartCoroutine with the method correctly
     }
 
-    // Method to call when ammo pickup is destroyed (e.g., when the player picks it up)
+    // Despawn the pickup after a set amount of time
+    private IEnumerator DespawnPickup(GameObject pickup)
+    {
+        // Wait for the despawn time to elapse
+        yield return new WaitForSeconds(despawnTime);
+
+        // Destroy the pickup game object
+        if (pickup != null)
+        {
+            Destroy(pickup);
+        }
+
+        currentPickupCount--;
+    }
+
     public void AmmoPickupDestroyed()
     {
-        ammoPickupExists = false; // Reset the flag, allowing a new ammo pickup to spawn
-        maxAmmoPickups++; // Optionally, you can reset the spawn limit if needed (e.g., if you want to allow multiple spawns later)
+        currentPickupCount--;
+    }
+
+    Vector3 GetRandomPositionWithinArea()
+    {
+        Vector3 randomPos = new Vector3(
+            areaCenter.x + Random.Range(-areaSize.x / 2f, areaSize.x / 2f),
+            Random.Range(minHeight, maxHeight), // Constrain height
+            areaCenter.z + Random.Range(-areaSize.z / 2f, areaSize.z / 2f)
+        );
+
+        return randomPos;
+    }
+
+    // Optional: visualize spawn bounds in editor
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireCube(areaCenter, areaSize);
     }
 }

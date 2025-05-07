@@ -257,8 +257,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b1719a4beeff41bca246c9fda0476cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  force: 5
-  lifetime: 2
+  force: 10
+  lifetime: 15
   damage: 50
   lineRenderer: {fileID: 6094607424279603620}
   linePoints: 20
